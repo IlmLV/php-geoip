@@ -39,7 +39,7 @@ GET /?what=ip
 It is possible to format response as json.
 
 GET /?format=json
-```
+```json
 {
    "ip" : "89.111.23.112",
    "organisation" : "SIA Digitalas Ekonomikas Attistibas Centrs",
