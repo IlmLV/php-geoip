@@ -73,8 +73,5 @@ GET /?format=json
 }
 ```
 
-## Limitations
-Currently only supports HTTP requests, no CLI support.
-
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

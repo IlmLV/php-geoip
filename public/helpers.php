@@ -1,6 +1,50 @@
 <?php
 
 /**
+ * Determines the real client IP, accounting for reverse proxies / CDNs.
+ *
+ * Checks forwarding headers in order of trust before falling back to the
+ * direct connection address, so the visitor IP is reported correctly when the
+ * site sits behind Cloudflare (CF-Connecting-IP / True-Client-IP) or another
+ * proxy (X-Forwarded-For). Each candidate is validated, so a malformed or
+ * spoofed-empty header is skipped rather than breaking the lookup.
+ *
+ * @return string|null The first valid IP found, or null if none are valid
+ */
+function getClientIp(): ?string {
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null,
+        $_SERVER['HTTP_TRUE_CLIENT_IP']   ?? null,
+    ];
+    // X-Forwarded-For is a comma-separated chain; the first entry is the client.
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        foreach (explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']) as $part) {
+            $candidates[] = trim($part);
+        }
+    }
+    $candidates[] = $_SERVER['REMOTE_ADDR'] ?? null;
+
+    foreach ($candidates as $ip) {
+        if ($ip && filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+    return null;
+}
+
+/**
+ * Returns the host the request was made to, so responses reference the domain
+ * currently in use rather than a hardcoded one. Cloudflare preserves the
+ * original Host header, so this is correct when behind the CDN. Note the Host
+ * header is client-supplied; fall back to SERVER_NAME, then a known default.
+ *
+ * @return string e.g. "ip.serviss.it" or "127.0.0.1:8080"
+ */
+function getCurrentHost(): string {
+    return $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'ip.serviss.it';
+}
+
+/**
  * Converts multi dimensional arrays to single level array
  * @param array $array
  * @param string|null $parentKey

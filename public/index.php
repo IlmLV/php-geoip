@@ -6,7 +6,7 @@ if(php_sapi_name() == 'cli')
 require '../vendor/autoload.php';
 require 'helpers.php';
 
-$ip = $_SERVER['REMOTE_ADDR'];
+$ip = getClientIp();
 if (!empty($_GET['ip'])) {
     $ip = $_GET['ip'];
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
@@ -46,7 +46,7 @@ $attr = [
         'is_in_european_union' => $city->country->isInEuropeanUnion,
         'flag' => [
             'emoji' => getCountryFlagEmoji($city->country->isoCode),
-            'url' => '//ip.serviss.it/images/flags/'. strtolower($city->country->isoCode) .'.svg',
+            'url' => '//'. getCurrentHost() .'/images/flags/'. strtolower($city->country->isoCode) .'.svg',
         ]
         //'calling_code' => '371',
         //'capital' => 'Riga',
