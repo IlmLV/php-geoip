@@ -17,7 +17,7 @@ final class GeoIpLocatorTest extends TestCase
 
         // `ip` is added by the locator and comes first.
         self::assertSame('8.8.8.8', $result['ip']);
-        self::assertSame('ip', array_key_first($result));
+        self::assertSame('ip', array_keys($result)[0]);
         self::assertSame('🇱🇻', $result['country']['flag']['emoji']);
         self::assertArrayNotHasKey('url', $result['country']['flag']); // no base URL given
     }
