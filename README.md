@@ -7,6 +7,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/IlmLV/php-geoip/actions/workflows/ci.yml"><img src="https://github.com/IlmLV/php-geoip/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/IlmLV/php-geoip"><img src="https://codecov.io/gh/IlmLV/php-geoip/graph/badge.svg" alt="Code Coverage"></a>
   <a href="https://packagist.org/packages/ilmlv/php-geoip"><img src="https://img.shields.io/packagist/v/ilmlv/php-geoip.svg?style=flat-square" alt="Latest Version"></a>
   <a href="https://packagist.org/packages/ilmlv/php-geoip"><img src="https://img.shields.io/packagist/dt/ilmlv/php-geoip.svg?style=flat-square" alt="Total Downloads"></a>
   <a href="https://php.net/"><img src="https://img.shields.io/packagist/php-v/ilmlv/php-geoip.svg?style=flat-square" alt="PHP Version"></a>

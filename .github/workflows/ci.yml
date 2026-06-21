@@ -24,7 +24,7 @@ jobs:
           tools: composer:v2
 
       - name: Install dependencies
-        run: composer update --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress
 
       - name: Validate composer.json
         run: composer validate --strict
@@ -53,8 +53,39 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      # The matrix spans PHP 7.2–8.4, but a single committed lock pins one
+      # PHPUnit version, so `composer update` is required here to resolve a
+      # PHPUnit compatible with each PHP. Single-version jobs use `install`.
       - name: Install dependencies
         run: composer update --prefer-dist --no-progress
 
       - name: Run unit tests
         run: composer test
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: json, mbstring
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run unit tests with coverage
+        run: vendor/bin/phpunit --testsuite unit --coverage-clover coverage.xml --coverage-filter src
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
