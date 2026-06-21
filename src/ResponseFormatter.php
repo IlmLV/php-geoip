@@ -37,7 +37,8 @@ class ResponseFormatter
     {
         $lines = [];
         foreach (Arr::flatten($attr) as $key => $value) {
-            $lines[] = Arr::prettyCase($key) . ': ' . (($value === null || $value === '') ? $this->missingValue : $value);
+            $display = ($value === null || $value === '') ? $this->missingValue : $value;
+            $lines[] = Arr::prettyCase($key) . ': ' . $display;
         }
         return implode(PHP_EOL, $lines) . PHP_EOL;
     }

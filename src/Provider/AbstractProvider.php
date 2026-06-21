@@ -54,8 +54,10 @@ abstract class AbstractProvider implements LocationProvider
             return $value;
         }
         $trimmed = trim($value);
-        if ($trimmed === '' || $trimmed === '-' || stripos($trimmed, 'not_supported') !== false
-            || stripos($trimmed, 'unavailable') !== false) {
+        if (
+            $trimmed === '' || $trimmed === '-' || stripos($trimmed, 'not_supported') !== false
+            || stripos($trimmed, 'unavailable') !== false
+        ) {
             return null;
         }
         return $trimmed;
