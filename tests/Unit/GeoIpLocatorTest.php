@@ -7,7 +7,7 @@ use IlmLV\GeoIp\GeoIpLocator;
 use IlmLV\GeoIp\Provider\ServissItProvider;
 use IlmLV\GeoIp\Tests\Fixtures\FakeProvider;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
+use ReflectionMethod;
 
 final class GeoIpLocatorTest extends TestCase
 {
@@ -50,10 +50,11 @@ final class GeoIpLocatorTest extends TestCase
 
     public function testDefaultConstructorUsesRemoteProvider(): void
     {
-        $prop = new ReflectionProperty(GeoIpLocator::class, 'provider');
+        // The default provider is resolved lazily; invoke the private resolver.
+        $method = new ReflectionMethod(GeoIpLocator::class, 'provider');
         if (\PHP_VERSION_ID < 80100) {
-            $prop->setAccessible(true); // required before PHP 8.1, a no-op (and deprecated) after
+            $method->setAccessible(true); // required before PHP 8.1, a no-op (and deprecated) after
         }
-        self::assertInstanceOf(ServissItProvider::class, $prop->getValue(new GeoIpLocator()));
+        self::assertInstanceOf(ServissItProvider::class, $method->invoke(new GeoIpLocator()));
     }
 }

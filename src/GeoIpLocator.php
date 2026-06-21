@@ -25,7 +25,7 @@ use IlmLV\GeoIp\Support\Flags;
  */
 class GeoIpLocator
 {
-    /** @var LocationProvider */
+    /** @var LocationProvider|null Resolved lazily to ServissItProvider when null. */
     private $provider;
 
     /** @var string|null */
@@ -43,9 +43,9 @@ class GeoIpLocator
      */
     public function __construct(?string $cityDbPath = null, ?string $asnDbPath = null, ?string $flagBaseUrl = null)
     {
-        $this->provider = $cityDbPath === null
-            ? new ServissItProvider()
-            : MmdbCityProvider::maxmind($cityDbPath, $asnDbPath);
+        if ($cityDbPath !== null) {
+            $this->provider = MmdbCityProvider::maxmind($cityDbPath, $asnDbPath);
+        }
         $this->flagBaseUrl = $flagBaseUrl !== null ? rtrim($flagBaseUrl, '/') : null;
     }
 
@@ -79,12 +79,16 @@ class GeoIpLocator
             throw InvalidIpException::forIp($ip);
         }
 
-        $data = $this->provider->lookup($ip);
+        $data = $this->provider()->lookup($ip);
 
-        $isoCode = $data['country']['iso_code'];
-        $flag = ['emoji' => $isoCode ? Flags::emoji($isoCode) : null];
-        if ($this->flagBaseUrl !== null && $isoCode) {
-            $flag['url'] = $this->flagBaseUrl . '/' . strtolower($isoCode) . '.svg';
+        $isoCode = $data['country']['iso_code'] ?? null;
+        $flag = ['emoji' => null];
+        // A flag is only meaningful for a 2-letter ISO 3166-1 alpha-2 code.
+        if (is_string($isoCode) && strlen($isoCode) === 2) {
+            $flag['emoji'] = Flags::emoji($isoCode);
+            if ($this->flagBaseUrl !== null) {
+                $flag['url'] = $this->flagBaseUrl . '/' . strtolower($isoCode) . '.svg';
+            }
         }
         $data['country']['flag'] = $flag;
 
@@ -96,6 +100,18 @@ class GeoIpLocator
      */
     public function attribution(): ?string
     {
-        return $this->provider->attribution();
+        return $this->provider()->attribution();
+    }
+
+    /**
+     * Returns the configured provider, defaulting to the remote ip.serviss.it
+     * service when none was supplied.
+     */
+    private function provider(): LocationProvider
+    {
+        if ($this->provider === null) {
+            $this->provider = new ServissItProvider();
+        }
+        return $this->provider;
     }
 }
