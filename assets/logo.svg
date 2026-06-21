@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="php-geoip logo">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <clipPath id="head">
+      <circle cx="64" cy="50" r="30"/>
+    </clipPath>
+  </defs>
+
+  <!-- Map pin with a globe head -->
+  <path d="M64 12 C41 12 22 31 22 54 C22 84 64 116 64 116 C64 116 106 84 106 54 C106 31 87 12 64 12 Z" fill="url(#g)"/>
+
+  <!-- Globe grid, clipped to the pin head -->
+  <g clip-path="url(#head)" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round">
+    <ellipse cx="64" cy="50" rx="11" ry="28"/>
+    <line x1="36" y1="50" x2="92" y2="50"/>
+    <line x1="42" y1="33" x2="86" y2="33"/>
+    <line x1="42" y1="67" x2="86" y2="67"/>
+  </g>
+
+  <!-- Globe outline -->
+  <circle cx="64" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="3.5"/>
+</svg>
