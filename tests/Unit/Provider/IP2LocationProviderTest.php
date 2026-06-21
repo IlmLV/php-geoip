@@ -41,4 +41,35 @@ final class IP2LocationProviderTest extends TestCase
         $this->expectException(AddressNotFoundException::class);
         IP2LocationProvider::fromDatabase($db)->lookup('0.0.0.0');
     }
+
+    public function testFalseRecordThrowsNotFound(): void
+    {
+        $db = new Database();
+        $db->setRecord(false); // the library returns false when the IP is absent
+
+        $this->expectException(AddressNotFoundException::class);
+        IP2LocationProvider::fromDatabase($db)->lookup('0.0.0.0');
+    }
+
+    public function testNonNumericCoordinatesBecomeNull(): void
+    {
+        $db = new Database();
+        $db->setRecord([
+            'countryCode' => 'US',
+            'countryName' => 'United States',
+            'latitude' => '-',     // lower BIN editions omit coordinates
+            'longitude' => 'N/A',
+        ]);
+
+        $data = IP2LocationProvider::fromDatabase($db)->lookup('8.8.8.8');
+
+        self::assertNull($data['location']['latitude']);
+        self::assertNull($data['location']['longitude']);
+    }
+
+    public function testAttributionIsSet(): void
+    {
+        $db = new Database();
+        self::assertStringContainsString('ip2location.com', IP2LocationProvider::fromDatabase($db)->attribution());
+    }
 }

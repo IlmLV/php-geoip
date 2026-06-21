@@ -39,6 +39,12 @@ final class IpinfoLiteProviderTest extends TestCase
         $provider->lookup('203.0.113.7');
     }
 
+    public function testAttributionIsSet(): void
+    {
+        $provider = IpinfoLiteProvider::fromReader($this->readerReturning(['country_code' => 'LV']));
+        self::assertStringContainsString('ipinfo.io', $provider->attribution());
+    }
+
     /**
      * @param array<string, mixed>|null $record
      */

@@ -19,11 +19,24 @@ final class ArrTest extends TestCase
         self::assertSame('LV', $flat['country-iso_code']);
     }
 
+    public function testFlattenEmptyArray(): void
+    {
+        self::assertSame([], Arr::flatten([]));
+    }
+
+    public function testFlattenDeepNestingWithCustomSeparator(): void
+    {
+        $flat = Arr::flatten(['country' => ['flag' => ['emoji' => '🇱🇻']]], null, '.');
+        self::assertSame(['country.flag.emoji' => '🇱🇻'], $flat);
+    }
+
     public function testPrettyCase(): void
     {
         $cases = [
             'iso_code'     => 'Iso-Code',
             'country-name' => 'Country-Name',
+            'time zone'    => 'Time-Zone', // space separator
+            'eu'           => 'EU',        // short token upper-cased
             'ip'           => 'IP',
             'organisation' => 'Organisation',
         ];

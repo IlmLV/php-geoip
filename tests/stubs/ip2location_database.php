@@ -14,7 +14,7 @@ if (!class_exists(Database::class, false)) {
         public const ALL = 1;
         public const FILE_IO = 1;
 
-        /** @var array<string, mixed> */
+        /** @var array<string, mixed>|false The real library returns array|false. */
         private $record = [];
 
         public function __construct($path = null, $mode = null)
@@ -22,9 +22,9 @@ if (!class_exists(Database::class, false)) {
         }
 
         /**
-         * @param array<string, mixed> $record
+         * @param array<string, mixed>|false $record
          */
-        public function setRecord(array $record): void
+        public function setRecord($record): void
         {
             $this->record = $record;
         }

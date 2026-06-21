@@ -91,7 +91,7 @@ class ServissItProvider extends AbstractProvider
      * @return array{0:int,1:string}
      * @throws RemoteException On transport failure.
      */
-    private function httpGet(string $url): array
+    protected function httpGet(string $url): array
     {
         if (ini_get('allow_url_fopen')) {
             $context = stream_context_create(['http' => [

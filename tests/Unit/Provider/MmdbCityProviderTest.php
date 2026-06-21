@@ -57,6 +57,49 @@ final class MmdbCityProviderTest extends TestCase
         self::assertNull($data['organisation']); // no ASN reader supplied
     }
 
+    public function testNamedFactoriesSetAttribution(): void
+    {
+        self::assertNull(MmdbCityProvider::maxmind('x.mmdb')->attribution());
+        self::assertStringContainsString('db-ip.com', MmdbCityProvider::dbip('x.mmdb')->attribution());
+        self::assertStringContainsString('iplocate.io', MmdbCityProvider::iplocate('x.mmdb')->attribution());
+    }
+
+    public function testFailingAsnReaderDoesNotFailTheLookup(): void
+    {
+        $city = new City(['country' => ['iso_code' => 'LV', 'names' => ['en' => 'Latvia']]], ['en']);
+
+        $cityReader = new class ($city) extends Reader {
+            /** @var City */
+            private $city;
+
+            public function __construct(City $city)
+            {
+                $this->city = $city;
+            }
+
+            public function city(string $ipAddress): City
+            {
+                return $this->city;
+            }
+        };
+        $asnReader = new class () extends Reader {
+            public function __construct()
+            {
+            }
+
+            public function asn(string $ipAddress): Asn
+            {
+                throw new \RuntimeException('asn db unavailable');
+            }
+        };
+
+        $data = MmdbCityProvider::fromReaders($cityReader, $asnReader)->lookup('8.8.8.8');
+
+        // ASN failure is swallowed; the rest of the lookup still resolves.
+        self::assertNull($data['organisation']);
+        self::assertSame('LV', $data['country']['iso_code']);
+    }
+
     public function testAddressNotFoundIsTranslated(): void
     {
         $reader = new class () extends Reader {

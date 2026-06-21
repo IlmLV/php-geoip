@@ -50,4 +50,26 @@ final class ResponseFormatterTest extends TestCase
         $this->expectException(UnknownAttributeException::class);
         (new ResponseFormatter())->pluck($this->attr, 'does-not-exist');
     }
+
+    public function testPluckReturnsNestedSubArray(): void
+    {
+        $country = (new ResponseFormatter())->pluck($this->attr, 'country');
+        self::assertIsArray($country);
+        self::assertSame('LV', $country['iso_code']);
+    }
+
+    public function testCustomMissingValuePlaceholder(): void
+    {
+        $text = (new ResponseFormatter('—'))->toPlainText(['organisation' => null]);
+        self::assertSame('Organisation: —' . PHP_EOL, $text);
+    }
+
+    public function testToPlainTextFlattensNestedKeysAndBlankToPlaceholder(): void
+    {
+        $text = (new ResponseFormatter())->toPlainText([
+            'country' => ['name' => 'Latvia', 'iso_code' => ''],
+        ]);
+        self::assertStringContainsString('Country-Name: Latvia', $text);
+        self::assertStringContainsString('Country-Iso-Code: N/A', $text); // '' → placeholder
+    }
 }
