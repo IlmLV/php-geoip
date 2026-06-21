@@ -86,12 +86,12 @@ $locator = new GeoIpLocator(
     '/path/to/GeoLite2-ASN.mmdb'   // optional — enables the `organisation` field
 );
 
-$result = $locator->locate('89.111.23.112');
+$result = $locator->locate('8.8.8.8');
 
 $formatter = new ResponseFormatter();
 echo $formatter->toJson($result);                   // JSON string
 echo $formatter->toPlainText($result);              // "Pretty-Key: value" lines
-echo $formatter->pluck($result, 'country-iso-code'); // "LV"
+echo $formatter->pluck($result, 'country-iso-code'); // "US"
 ```
 
 To include a `country.flag.url` in the result, pass a base URL as the third
@@ -159,20 +159,20 @@ See [License & attribution](#license--attribution).
 
 ```php
 [
-    'ip'           => '89.111.23.112',
-    'organisation' => 'SIA Digitalas Ekonomikas Attistibas Centrs',
+    'ip'           => '8.8.8.8',
+    'organisation' => 'GOOGLE',
     'city'         => ['name' => null],
     'country'      => [
-        'name'                 => 'Latvia',
-        'iso_code'             => 'LV',
-        'is_in_european_union' => true,
-        'flag'                 => ['emoji' => '🇱🇻'],
+        'name'                 => 'United States',
+        'iso_code'             => 'US',
+        'is_in_european_union' => false,
+        'flag'                 => ['emoji' => '🇺🇸'],
     ],
-    'continent'    => ['name' => 'Europe', 'code' => 'EU'],
+    'continent'    => ['name' => 'North America', 'code' => 'NA'],
     'region'       => ['name' => null, 'iso_code' => null],
-    'location'     => ['latitude' => 57.0, 'longitude' => 24.1],
+    'location'     => ['latitude' => 37.751, 'longitude' => -97.822],
     'zip_code'     => null,
-    'time_zone'    => 'Europe/Riga',
+    'time_zone'    => 'America/Chicago',
     'metro_code'   => null,
 ]
 ```
@@ -200,16 +200,16 @@ The package installs a `geoip` binary at `vendor/bin/geoip` for lookups from the
 shell. With no `--provider`, it uses the remote `ip.serviss.it` service (zero setup):
 
 ```bash
-vendor/bin/geoip 89.111.23.112
-vendor/bin/geoip 89.111.23.112 --format=json
-vendor/bin/geoip 89.111.23.112 --what=country-iso-code   # → LV
+vendor/bin/geoip 8.8.8.8
+vendor/bin/geoip 8.8.8.8 --format=json
+vendor/bin/geoip 8.8.8.8 --what=country-iso-code   # → US
 ```
 
 For a local database, pick a provider:
 
 ```bash
-vendor/bin/geoip 89.111.23.112 --provider=mmdb --db=./data/GeoLite2-City.mmdb
-vendor/bin/geoip 89.111.23.112 --provider=dbip --db=./data/dbip-city-lite.mmdb
+vendor/bin/geoip 8.8.8.8 --provider=mmdb --db=./data/GeoLite2-City.mmdb
+vendor/bin/geoip 8.8.8.8 --provider=dbip --db=./data/dbip-city-lite.mmdb
 ```
 
 | Option              | Description                                                        |
@@ -236,10 +236,10 @@ database path is given.
 ```php
 use IlmLV\GeoIp\GeoIpLocator;
 
-$result = (new GeoIpLocator())->locate('89.111.23.112');
-echo $result['country']['name'];      // "Latvia"
-echo $result['country']['iso_code'];  // "LV"
-echo $result['time_zone'];            // "Europe/Riga"
+$result = (new GeoIpLocator())->locate('8.8.8.8');
+echo $result['country']['name'];      // "United States"
+echo $result['country']['iso_code'];  // "US"
+echo $result['time_zone'];            // "America/Chicago"
 ```
 
 ### Format the result
@@ -248,12 +248,12 @@ echo $result['time_zone'];            // "Europe/Riga"
 use IlmLV\GeoIp\GeoIpLocator;
 use IlmLV\GeoIp\ResponseFormatter;
 
-$result = (new GeoIpLocator())->locate('89.111.23.112');
+$result = (new GeoIpLocator())->locate('8.8.8.8');
 $format = new ResponseFormatter();
 
 echo $format->toJson($result);                    // JSON string
-echo $format->toPlainText($result);               // "Country-Name: Latvia\n…"
-echo $format->pluck($result, 'country-iso-code'); // "LV"  (single field)
+echo $format->toPlainText($result);               // "Country-Name: United States\n…"
+echo $format->pluck($result, 'country-iso-code'); // "US"  (single field)
 ```
 
 ### Read a local database
@@ -263,7 +263,7 @@ use IlmLV\GeoIp\GeoIpLocator;
 
 // MaxMind GeoLite2 (City + optional ASN). Download with `vendor/bin/geoip-update`.
 $result = (new GeoIpLocator('data/GeoLite2-City.mmdb', 'data/GeoLite2-ASN.mmdb'))
-    ->locate('89.111.23.112');
+    ->locate('8.8.8.8');
 ```
 
 ```php
@@ -272,7 +272,7 @@ use IlmLV\GeoIp\Provider\MmdbCityProvider;
 
 // DB-IP Lite (no API key). `attribution()` then returns the link you must show.
 $locator = GeoIpLocator::withProvider(MmdbCityProvider::dbip('data/dbip-city-lite.mmdb'));
-$result  = $locator->locate('89.111.23.112');
+$result  = $locator->locate('8.8.8.8');
 echo $locator->attribution(); // <a href='https://db-ip.com'>IP Geolocation by DB-IP</a>
 ```
 
@@ -296,9 +296,9 @@ Save as `public/index.php` and run `php -S localhost:8080 -t public`. It support
 `?ip=`, `?format=json|plain` (default `plain`) and `?what=` for a single field:
 
 ```
-GET /?ip=89.111.23.112                       → plain text
-GET /?ip=89.111.23.112&format=json           → JSON
-GET /?ip=89.111.23.112&what=country-iso-code → "LV"
+GET /?ip=8.8.8.8                       → plain text
+GET /?ip=8.8.8.8&format=json           → JSON
+GET /?ip=8.8.8.8&what=country-iso-code → "US"
 ```
 
 ```php

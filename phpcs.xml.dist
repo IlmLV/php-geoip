@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="php-geoip">
+    <description>PSR-12 coding standard for the library and tests.</description>
+
+    <file>src</file>
+    <file>tests</file>
+
+    <!-- CLI entry scripts intentionally mix declarations and side effects; they
+         are syntax-checked with `php -l` in CI instead. -->
+    <exclude-pattern>tests/stubs/*</exclude-pattern>
+
+    <arg name="colors"/>
+    <arg value="sp"/> <!-- show sniff codes and progress -->
+
+    <rule ref="PSR12"/>
+</ruleset>

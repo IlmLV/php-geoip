@@ -14,7 +14,7 @@ final class Arr
      * keys with $separator (e.g. ['country' => ['name' => 'Latvia']] becomes
      * ['country-name' => 'Latvia']).
      */
-    public static function flatten(array $array, string $parentKey = null, string $separator = '-'): array
+    public static function flatten(array $array, ?string $parentKey = null, string $separator = '-'): array
     {
         $result = [];
         foreach ($array as $key => $value) {

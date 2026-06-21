@@ -22,6 +22,10 @@
         "ext-mbstring": "*",
         "geoip2/geoip2": "^2.13"
     },
+    "require-dev": {
+        "phpunit/phpunit": "^8.5 || ^9.6 || ^10.5 || ^11.0 || ^12.0",
+        "squizlabs/php_codesniffer": "^3.7"
+    },
     "suggest": {
         "ext-curl": "Used as the HTTP transport fallback for the remote ServissItProvider when allow_url_fopen is disabled.",
         "ip2location/ip2location-php": "Required only for the IP2Location BIN provider (IlmLV\\GeoIp\\Provider\\IP2LocationProvider); needs ext-bcmath."
@@ -31,8 +35,22 @@
             "IlmLV\\GeoIp\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "IlmLV\\GeoIp\\Tests\\": "tests/"
+        },
+        "files": [
+            "tests/stubs/ip2location_database.php"
+        ]
+    },
     "bin": [
         "bin/geoip",
         "bin/geoip-update"
-    ]
+    ],
+    "scripts": {
+        "test": "phpunit --testsuite unit",
+        "test:remote": "phpunit --testsuite remote",
+        "cs": "phpcs",
+        "cs:fix": "phpcbf"
+    }
 }

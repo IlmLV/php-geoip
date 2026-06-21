@@ -199,10 +199,10 @@ Usage: geoip <ip> [--format=plain|json] [--what=ATTR] [--provider=NAME]
 Providers: serviss (default, remote ip.serviss.it), mmdb, dbip, iplocate, ipinfo, ip2location
 
 Examples:
-  geoip 89.111.23.112                                  # remote, zero setup
-  geoip 89.111.23.112 --format=json
-  geoip 89.111.23.112 --what=country-iso-code
-  geoip 89.111.23.112 --provider=mmdb --db=./data/GeoLite2-City.mmdb
+  geoip 8.8.8.8                                  # remote, zero setup
+  geoip 8.8.8.8 --format=json
+  geoip 8.8.8.8 --what=country-iso-code
+  geoip 8.8.8.8 --provider=mmdb --db=./data/GeoLite2-City.mmdb
 
 The default provider queries ip.serviss.it over the network. For local lookups
 pick another provider (set --provider or \$GEOIP_PROVIDER); its database defaults
