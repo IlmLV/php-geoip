@@ -1,0 +1,228 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Command-line GeoIP lookup. Resolves an IP address and prints the result as
+ * plain text (default) or JSON, optionally narrowed to a single attribute.
+ *
+ * By default it queries the remote ip.serviss.it service (no database needed);
+ * pass --provider=mmdb (or another) to read a local database instead.
+ *
+ * Usage:
+ *   geoip <ip> [--format=plain|json] [--what=ATTR] [--provider=NAME]
+ *              [--db=PATH] [--asn-db=PATH] [--ip2location=PATH] [--flag-base-url=URL]
+ *
+ * Options:
+ *   --format=plain|json   Output format (default: plain).
+ *   --what=ATTR           Print a single attribute, e.g. country-iso-code.
+ *   --provider=NAME       Backend: serviss (default, remote), mmdb, dbip, iplocate,
+ *                         ipinfo, ip2location (or set GEOIP_PROVIDER).
+ *   --db=PATH             Primary database path (or --city-db / $GEOIP_CITY_DB).
+ *                         Defaults per provider under ./data.
+ *   --asn-db=PATH         ASN .mmdb for `organisation` (mmdb-family providers).
+ *   --ip2location=PATH    Path to an IP2Location .BIN file (provider=ip2location).
+ *   --flag-base-url=URL   Base URL for flag SVGs; when set, adds country.flag.url.
+ *   -h, --help            Show this help.
+ *
+ * Exit codes: 0 success, 1 usage/runtime error, 2 IP not found.
+ *
+ * See bin/geoip-update to download a database for the local providers.
+ */
+
+use IlmLV\GeoIp\GeoIpLocator;
+use IlmLV\GeoIp\ResponseFormatter;
+use IlmLV\GeoIp\Provider\ServissItProvider;
+use IlmLV\GeoIp\Provider\MmdbCityProvider;
+use IlmLV\GeoIp\Provider\IpinfoLiteProvider;
+use IlmLV\GeoIp\Provider\IP2LocationProvider;
+use IlmLV\GeoIp\Exception\InvalidIpException;
+use IlmLV\GeoIp\Exception\AddressNotFoundException;
+use IlmLV\GeoIp\Exception\UnknownAttributeException;
+use IlmLV\GeoIp\Exception\RemoteException;
+
+require_autoloader();
+
+[$positional, $options] = parse_args($argv);
+
+if (isset($options['help']) || isset($options['h'])) {
+    fwrite(STDOUT, usage());
+    exit(0);
+}
+
+$ip = $positional[0] ?? null;
+if ($ip === null) {
+    fwrite(STDERR, "ERROR: an IP address is required.\n\n" . usage());
+    exit(1);
+}
+
+$format = strtolower($options['format'] ?? 'plain');
+if (!in_array($format, ['plain', 'json'], true)) {
+    fwrite(STDERR, "ERROR: unknown --format `$format` (expected plain or json).\n");
+    exit(1);
+}
+
+$flagBaseUrl = $options['flag-base-url'] ?? null;
+
+try {
+    $locator = build_locator($options, $flagBaseUrl);
+} catch (\Exception $e) {
+    // Config errors (RuntimeException) and missing optional deps (GeoIpException).
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+$formatter = new ResponseFormatter();
+
+try {
+    $attr = $locator->locate($ip);
+} catch (InvalidIpException $e) {
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(1);
+} catch (AddressNotFoundException $e) {
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(2);
+} catch (RemoteException $e) {
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+// Single-attribute request: print the raw value, no attribution decoration.
+if (isset($options['what'])) {
+    try {
+        $value = $formatter->pluck($attr, strtolower($options['what']));
+    } catch (UnknownAttributeException $e) {
+        fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+        exit(1);
+    }
+    fwrite(STDOUT, (is_array($value) ? $formatter->toJson($value) : $value) . "\n");
+    exit(0);
+}
+
+$attribution = $locator->attribution();
+if ($format === 'json') {
+    if ($attribution !== null) {
+        $attr['_attribution'] = $attribution;
+    }
+    fwrite(STDOUT, $formatter->toJson($attr) . "\n");
+} else {
+    fwrite(STDOUT, $formatter->toPlainText($attr));
+    if ($attribution !== null) {
+        fwrite(STDOUT, '# ' . strip_tags($attribution) . "\n");
+    }
+}
+exit(0);
+
+/**
+ * Builds a GeoIpLocator for the requested --provider (default: serviss, the
+ * remote ip.serviss.it service), resolving the database path from --db /
+ * provider-specific flags / env / sensible default for the local providers.
+ *
+ * @param array<string, mixed> $options
+ * @throws \Exception On a missing database or missing optional dependency.
+ */
+function build_locator(array $options, ?string $flagBaseUrl): GeoIpLocator
+{
+    $dataDir = getcwd() . '/data';
+    $provider = strtolower($options['provider'] ?? getenv('GEOIP_PROVIDER') ?: 'serviss');
+
+    $primaryDb = function (string $default) use ($options, $dataDir) {
+        $path = $options['db'] ?? $options['city-db'] ?? (getenv('GEOIP_CITY_DB') ?: $dataDir . '/' . $default);
+        if (!is_file($path)) {
+            throw new \RuntimeException("database not found at `$path`. Pass --db=PATH or run geoip-update.");
+        }
+        return $path;
+    };
+    $asnDb = function () use ($options, $dataDir) {
+        $path = $options['asn-db'] ?? (getenv('GEOIP_ASN_DB') ?: $dataDir . '/GeoLite2-ASN.mmdb');
+        return is_file($path) ? $path : null;
+    };
+
+    switch ($provider) {
+        case 'serviss':
+        case 'remote':
+            return GeoIpLocator::withProvider(new ServissItProvider(), $flagBaseUrl);
+        case 'mmdb':
+        case 'maxmind':
+            return GeoIpLocator::withProvider(MmdbCityProvider::maxmind($primaryDb('GeoLite2-City.mmdb'), $asnDb()), $flagBaseUrl);
+        case 'dbip':
+            return GeoIpLocator::withProvider(MmdbCityProvider::dbip($primaryDb('dbip-city-lite.mmdb'), $asnDb()), $flagBaseUrl);
+        case 'iplocate':
+            return GeoIpLocator::withProvider(MmdbCityProvider::iplocate($primaryDb('iplocate-city.mmdb'), $asnDb()), $flagBaseUrl);
+        case 'ipinfo':
+            return GeoIpLocator::withProvider(new IpinfoLiteProvider($primaryDb('ipinfo-lite.mmdb')), $flagBaseUrl);
+        case 'ip2location':
+            $bin = $options['ip2location'] ?? $options['db'] ?? null;
+            if (!$bin || !is_file($bin)) {
+                throw new \RuntimeException('IP2Location requires --ip2location=PATH to a .BIN file.');
+            }
+            return GeoIpLocator::withProvider(new IP2LocationProvider($bin), $flagBaseUrl);
+        default:
+            throw new \RuntimeException("unknown --provider `$provider` (expected serviss, mmdb, dbip, iplocate, ipinfo or ip2location).");
+    }
+}
+
+/**
+ * Splits argv into positional arguments and --name[=value] / -h options.
+ * A flag without "=" (e.g. --help) is stored as true.
+ *
+ * @param string[] $argv
+ * @return array{0: string[], 1: array<string, mixed>}
+ */
+function parse_args(array $argv): array
+{
+    $positional = [];
+    $options = [];
+    foreach (array_slice($argv, 1) as $arg) {
+        if (strpos($arg, '--') === 0) {
+            $body = substr($arg, 2);
+            if (strpos($body, '=') !== false) {
+                [$name, $value] = explode('=', $body, 2);
+                $options[$name] = $value;
+            } else {
+                $options[$body] = true;
+            }
+        } elseif ($arg === '-h') {
+            $options['h'] = true;
+        } else {
+            $positional[] = $arg;
+        }
+    }
+    return [$positional, $options];
+}
+
+function usage(): string
+{
+    return <<<TXT
+Usage: geoip <ip> [--format=plain|json] [--what=ATTR] [--provider=NAME]
+                  [--db=PATH] [--asn-db=PATH] [--ip2location=PATH] [--flag-base-url=URL]
+
+Providers: serviss (default, remote ip.serviss.it), mmdb, dbip, iplocate, ipinfo, ip2location
+
+Examples:
+  geoip 8.8.8.8                                  # remote, zero setup
+  geoip 8.8.8.8 --format=json
+  geoip 8.8.8.8 --what=country-iso-code
+  geoip 8.8.8.8 --provider=mmdb --db=./data/GeoLite2-City.mmdb
+
+The default provider queries ip.serviss.it over the network. For local lookups
+pick another provider (set --provider or \$GEOIP_PROVIDER); its database defaults
+to ./data (or \$GEOIP_CITY_DB / \$GEOIP_ASN_DB). Run geoip-update to download one.
+
+TXT;
+}
+
+function require_autoloader(): void
+{
+    $candidates = [
+        __DIR__ . '/../vendor/autoload.php',   // running from this package
+        __DIR__ . '/../../../autoload.php',     // installed as a dependency
+    ];
+    foreach ($candidates as $file) {
+        if (is_file($file)) {
+            require $file;
+            return;
+        }
+    }
+    fwrite(STDERR, "ERROR: could not locate Composer autoloader. Run `composer install`.\n");
+    exit(1);
+}
