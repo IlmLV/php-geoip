@@ -1,0 +1,284 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Downloads a free GeoIP database into a target directory.
+ *
+ * This library never ships a database; database licenses vary by source and
+ * most require keeping the data current (e.g. MaxMind requires deleting old
+ * releases within 30 days). Pick a source with --source:
+ *
+ *   maxmind  MaxMind GeoLite2 (requires a license key). DEFAULT.
+ *   dbip     DB-IP Lite (no key, CC BY 4.0, attribution required).
+ *   url      Download a single .mmdb / .mmdb.gz from an explicit --url
+ *            (use for IPLocate.io / IPinfo tokenised download links).
+ *
+ * Usage:
+ *   MAXMIND_LICENSE_KEY=xxxx geoip-update [--dir=DIR] [--edition=ID ...]
+ *   geoip-update --source=dbip --dir=./data [--edition=city ...]
+ *   geoip-update --source=url --url=https://.../file.mmdb.gz [--out=name.mmdb]
+ *
+ * Common options:
+ *   --dir=DIR       Output directory (default: ./data).
+ *
+ * maxmind options:
+ *   --key=KEY       MaxMind license key (or set MAXMIND_LICENSE_KEY).
+ *   --edition=ID    Repeatable. Default: GeoLite2-City, GeoLite2-ASN.
+ *   (MaxMind's official `geoipupdate` binary is recommended for scheduled use:
+ *    https://github.com/maxmind/geoipupdate)
+ *
+ * dbip options:
+ *   --edition=ID    Repeatable; one of city|country|asn. Default: city, asn.
+ *
+ * url options:
+ *   --url=URL       Direct .mmdb or .mmdb.gz URL (required).
+ *   --out=NAME      Output filename (default: derived from the URL).
+ */
+
+$options = parseArgs($argv);
+$source = strtolower($options['source'] ?? 'maxmind');
+
+$targetDir = rtrim($options['dir'] ?? getcwd() . '/data', '/');
+if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
+    fwrite(STDERR, "ERROR: could not create directory `$targetDir`.\n");
+    exit(1);
+}
+
+try {
+    switch ($source) {
+        case 'maxmind':
+            runMaxmind($options, $targetDir);
+            break;
+        case 'dbip':
+            runDbip($options, $targetDir);
+            break;
+        case 'url':
+            runUrl($options, $targetDir);
+            break;
+        default:
+            fwrite(STDERR, "ERROR: unknown --source `$source` (expected maxmind, dbip or url).\n");
+            exit(1);
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "Done.\n");
+exit(0);
+
+function runMaxmind(array $options, string $targetDir): void
+{
+    $licenseKey = $options['key'] ?? getenv('MAXMIND_LICENSE_KEY') ?: null;
+    if (!$licenseKey) {
+        throw new RuntimeException('provide a MaxMind license key via --key=... or MAXMIND_LICENSE_KEY.');
+    }
+    $editions = $options['edition'] ?? ['GeoLite2-City', 'GeoLite2-ASN'];
+    foreach ($editions as $edition) {
+        fwrite(STDOUT, "Downloading {$edition} (maxmind)...\n");
+        fwrite(STDOUT, '  -> ' . downloadAndExtract($edition, $licenseKey, $targetDir) . "\n");
+    }
+}
+
+function runDbip(array $options, string $targetDir): void
+{
+    $editions = $options['edition'] ?? ['city', 'asn'];
+    foreach ($editions as $edition) {
+        fwrite(STDOUT, "Downloading dbip-{$edition}-lite (dbip)...\n");
+        fwrite(STDOUT, '  -> ' . downloadDbip($edition, $targetDir) . "\n");
+    }
+    fwrite(STDOUT, "Attribution required: <a href='https://db-ip.com'>IP Geolocation by DB-IP</a>\n");
+}
+
+function runUrl(array $options, string $targetDir): void
+{
+    $url = $options['url'] ?? null;
+    if (!$url) {
+        throw new RuntimeException('--source=url requires --url=https://.../file.mmdb[.gz].');
+    }
+    $out = $options['out'] ?? preg_replace('/\.gz$/', '', basename(parse_url($url, PHP_URL_PATH) ?: 'database.mmdb'));
+    fwrite(STDOUT, "Downloading {$url} (url)...\n");
+    fwrite(STDOUT, '  -> ' . downloadMmdbUrl($url, $targetDir . '/' . $out) . "\n");
+}
+
+/**
+ * @param string[] $argv
+ * @return array<string, mixed>
+ */
+function parseArgs(array $argv): array
+{
+    $out = [];
+    foreach (array_slice($argv, 1) as $arg) {
+        if (strpos($arg, '--') !== 0 || strpos($arg, '=') === false) {
+            continue;
+        }
+        [$name, $value] = explode('=', substr($arg, 2), 2);
+        if ($name === 'edition') {
+            $out['edition'][] = $value;
+        } else {
+            $out[$name] = $value;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Downloads a DB-IP Lite edition (city|country|asn). DB-IP publishes a fresh
+ * `dbip-<edition>-lite-YYYY-MM.mmdb.gz` monthly with no key required; we try the
+ * current month and fall back to the previous one if it isn't published yet.
+ */
+function downloadDbip(string $edition, string $targetDir): string
+{
+    $edition = strtolower($edition);
+    if (!in_array($edition, ['city', 'country', 'asn'], true)) {
+        throw new RuntimeException("unknown DB-IP edition `$edition` (expected city, country or asn).");
+    }
+
+    $months = [date('Y-m'), date('Y-m', strtotime('first day of last month'))];
+    $dest = $targetDir . '/dbip-' . $edition . '-lite.mmdb';
+    $lastError = 'no candidate month succeeded';
+
+    foreach ($months as $month) {
+        $url = "https://download.db-ip.com/free/dbip-{$edition}-lite-{$month}.mmdb.gz";
+        try {
+            return downloadMmdbUrl($url, $dest);
+        } catch (Throwable $e) {
+            $lastError = $e->getMessage();
+        }
+    }
+    throw new RuntimeException("could not download DB-IP {$edition} lite ({$lastError}).");
+}
+
+/**
+ * Downloads an .mmdb or .mmdb.gz from $url, writing the decompressed .mmdb to
+ * $dest. Returns the destination path.
+ */
+function downloadMmdbUrl(string $url, string $dest): string
+{
+    $isGzip = substr($url, -3) === '.gz';
+    $tmp = tempnam(sys_get_temp_dir(), 'geoip_');
+    httpDownload($url, $tmp);
+
+    if (filesize($tmp) < 1024) {
+        $body = trim((string) file_get_contents($tmp));
+        @unlink($tmp);
+        throw new RuntimeException('unexpected response: ' . ($body !== '' ? $body : 'empty body'));
+    }
+
+    if ($isGzip) {
+        gunzip($tmp, $dest);
+        @unlink($tmp);
+    } elseif (!rename($tmp, $dest) && !copy($tmp, $dest)) {
+        @unlink($tmp);
+        throw new RuntimeException("could not write {$dest}.");
+    }
+    return $dest;
+}
+
+/**
+ * Streams $url to $dest, throwing on transport failure or non-success HTTP code.
+ */
+function httpDownload(string $url, string $dest): void
+{
+    $context = stream_context_create(['http' => ['ignore_errors' => true, 'follow_location' => 1]]);
+    $in = @fopen($url, 'rb', false, $context);
+    if ($in === false) {
+        throw new RuntimeException('download failed (check the URL, key and network).');
+    }
+    // $http_response_header is populated by the HTTP stream wrapper.
+    if (isset($http_response_header[0]) && !preg_match('#\s2\d\d\s#', $http_response_header[0])) {
+        fclose($in);
+        throw new RuntimeException('server returned ' . $http_response_header[0]);
+    }
+    $out = fopen($dest, 'wb');
+    stream_copy_to_stream($in, $out);
+    fclose($in);
+    fclose($out);
+}
+
+/**
+ * Decompresses a gzip file $src into $dest.
+ */
+function gunzip(string $src, string $dest): void
+{
+    $in = gzopen($src, 'rb');
+    if ($in === false) {
+        throw new RuntimeException('could not open gzip stream.');
+    }
+    $out = fopen($dest, 'wb');
+    while (!gzeof($in)) {
+        fwrite($out, gzread($in, 1 << 20));
+    }
+    gzclose($in);
+    fclose($out);
+}
+
+function downloadAndExtract(string $edition, string $licenseKey, string $targetDir): string
+{
+    $url = 'https://download.maxmind.com/app/geoip_download?'
+        . http_build_query([
+            'edition_id' => $edition,
+            'license_key' => $licenseKey,
+            'suffix' => 'tar.gz',
+        ]);
+
+    $tmpTarGz = tempnam(sys_get_temp_dir(), 'geoip_') . '.tar.gz';
+    $in = fopen($url, 'rb');
+    if ($in === false) {
+        throw new RuntimeException('download failed (check your license key and network).');
+    }
+    $out = fopen($tmpTarGz, 'wb');
+    stream_copy_to_stream($in, $out);
+    fclose($in);
+    fclose($out);
+
+    if (filesize($tmpTarGz) < 1024) {
+        $body = trim((string) file_get_contents($tmpTarGz));
+        @unlink($tmpTarGz);
+        throw new RuntimeException('unexpected response: ' . ($body !== '' ? $body : 'empty body'));
+    }
+
+    // Extract: tar.gz -> tar -> directory containing <Edition>_<date>/<Edition>.mmdb
+    $extractDir = $tmpTarGz . '_x';
+    mkdir($extractDir, 0775, true);
+
+    $tar = substr($tmpTarGz, 0, -3); // strip ".gz"
+    (new PharData($tmpTarGz))->decompress(); // creates the .tar alongside
+    (new PharData($tar))->extractTo($extractDir, null, true);
+
+    $mmdbFiles = glob($extractDir . '/*/' . $edition . '.mmdb');
+    if (!$mmdbFiles) {
+        cleanup([$tmpTarGz, $tar, $extractDir]);
+        throw new RuntimeException("could not find {$edition}.mmdb in the archive.");
+    }
+
+    $dest = $targetDir . '/' . $edition . '.mmdb';
+    if (!copy($mmdbFiles[0], $dest)) {
+        cleanup([$tmpTarGz, $tar, $extractDir]);
+        throw new RuntimeException("could not write {$dest}.");
+    }
+
+    cleanup([$tmpTarGz, $tar, $extractDir]);
+    return $dest;
+}
+
+/**
+ * @param string[] $paths
+ */
+function cleanup(array $paths): void
+{
+    foreach ($paths as $path) {
+        if (is_dir($path)) {
+            $items = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($items as $item) {
+                $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+            }
+            rmdir($path);
+        } elseif (is_file($path)) {
+            unlink($path);
+        }
+    }
+}

@@ -1,8 +1,38 @@
 {
+    "name": "ilmlv/php-geoip",
+    "description": "IP geolocation lookup and response formatting for MaxMind GeoLite2, DB-IP, IPLocate, IPinfo and IP2Location databases.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["geoip", "geolocation", "maxmind", "geolite2", "db-ip", "ip2location", "ipinfo", "iplocate", "ip", "asn"],
+    "homepage": "https://github.com/IlmLV/php-geoip",
+    "authors": [
+        {
+            "name": "Ilmars Kluss",
+            "email": "ilmars.kluss@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/IlmLV/php-geoip/issues",
+        "source": "https://github.com/IlmLV/php-geoip"
+    },
     "require": {
+        "php": ">=7.2",
         "ext-json": "*",
         "ext-mbstring": "*",
-        "php": ">=7.2",
         "geoip2/geoip2": "^2.13"
-    }
+    },
+    "suggest": {
+        "ext-curl": "Used as the HTTP transport fallback for the remote ServissItProvider when allow_url_fopen is disabled.",
+        "ip2location/ip2location-php": "Required only for the IP2Location BIN provider (IlmLV\\GeoIp\\Provider\\IP2LocationProvider); needs ext-bcmath."
+    },
+    "autoload": {
+        "psr-4": {
+            "IlmLV\\GeoIp\\": "src/"
+        }
+    },
+    "bin": [
+        "bin/geoip",
+        "bin/geoip-update"
+    ]
 }
