@@ -94,35 +94,63 @@ class ServissItProvider extends AbstractProvider
     protected function httpGet(string $url): array
     {
         if (ini_get('allow_url_fopen')) {
-            $context = stream_context_create(['http' => [
-                'timeout' => $this->timeout,
-                'ignore_errors' => true, // read the body even on a 4xx/5xx
-                'header' => "Accept: application/json\r\n",
-            ]]);
-            $body = @file_get_contents($url, false, $context);
-            if ($body !== false) {
-                return [$this->statusFromHeaders($http_response_header ?? []), $body];
+            $viaStream = $this->streamGet($url);
+            if ($viaStream !== null) {
+                return $viaStream;
             }
         }
 
         if (function_exists('curl_init')) {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => $this->timeout,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-            ]);
-            $body = curl_exec($ch);
-            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
-            curl_close($ch);
-            if ($body === false) {
-                throw RemoteException::forUrl($url, $error ?: 'cURL request failed');
-            }
-            return [$status, (string) $body];
+            return $this->curlGet($url);
         }
 
         throw RemoteException::forUrl($url, 'no HTTP transport available (enable allow_url_fopen or ext-curl)');
+    }
+
+    /**
+     * Fetches via the HTTP stream wrapper. Returns [statusCode, body], or null
+     * when the request could not be made so the caller can fall back to cURL.
+     *
+     * @return array{0:int,1:string}|null
+     */
+    protected function streamGet(string $url): ?array
+    {
+        $context = stream_context_create(['http' => [
+            'timeout' => $this->timeout,
+            'ignore_errors' => true, // read the body even on a 4xx/5xx
+            'header' => "Accept: application/json\r\n",
+        ]]);
+        $body = @file_get_contents($url, false, $context);
+        if ($body === false) {
+            return null;
+        }
+        return [$this->statusFromHeaders($http_response_header ?? []), $body];
+    }
+
+    /**
+     * Fetches via cURL. Returns [statusCode, body].
+     *
+     * @return array{0:int,1:string}
+     * @throws RemoteException On transport failure.
+     */
+    protected function curlGet(string $url): array
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        if (\PHP_VERSION_ID < 80000) {
+            curl_close($ch); // no-op since 8.0, deprecated in 8.5; still needed on 7.x
+        }
+        if ($body === false) {
+            throw RemoteException::forUrl($url, $error ?: 'cURL request failed');
+        }
+        return [$status, (string) $body];
     }
 
     /**
